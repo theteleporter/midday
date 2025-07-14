@@ -2116,6 +2116,7 @@ export const oauthApplications = pgTable(
   {
     id: uuid("id").notNull().defaultRandom().primaryKey(),
     name: text("name").notNull(),
+    slug: text("slug").notNull().unique(),
     description: text("description"),
     overview: text("overview"),
     developerName: text("developer_name"),
@@ -2146,6 +2147,10 @@ export const oauthApplications = pgTable(
     index("oauth_applications_client_id_idx").using(
       "btree",
       table.clientId.asc().nullsLast().op("text_ops"),
+    ),
+    index("oauth_applications_slug_idx").using(
+      "btree",
+      table.slug.asc().nullsLast().op("text_ops"),
     ),
     foreignKey({
       columns: [table.teamId],
