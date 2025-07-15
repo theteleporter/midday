@@ -2138,6 +2138,9 @@ export const oauthApplications = pgTable(
       .defaultNow(),
     isPublic: boolean("is_public").default(false),
     active: boolean("active").default(true),
+    status: text("status", {
+      enum: ["draft", "pending", "approved", "rejected"],
+    }).default("draft"),
   },
   (table) => [
     index("oauth_applications_team_id_idx").using(
