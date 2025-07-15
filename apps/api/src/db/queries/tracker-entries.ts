@@ -399,9 +399,12 @@ export async function startTimer(db: Database, params: StartTimerParams) {
 
   // If continuing from a paused entry, resume it
   if (continueFromEntry) {
+    const resumeTime = start || new Date().toISOString();
+
     const [resumedEntry] = await db
       .update(trackerEntries)
       .set({
+        start: resumeTime, // Update the start timestamp to resume time
         stop: null,
         duration: -1,
       })
