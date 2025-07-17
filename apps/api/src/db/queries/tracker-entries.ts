@@ -361,20 +361,16 @@ export async function deleteTrackerEntry(
 ) {
   const { teamId, id } = params;
 
-  const result = await db.transaction(async (tx) => {
-    const [deletedEntry] = await tx
-      .delete(trackerEntries)
-      .where(and(eq(trackerEntries.teamId, teamId), eq(trackerEntries.id, id)))
-      .returning();
+  const [deletedEntry] = await db
+    .delete(trackerEntries)
+    .where(and(eq(trackerEntries.teamId, teamId), eq(trackerEntries.id, id)))
+    .returning();
 
-    if (!deletedEntry) {
-      throw new Error("Tracker entry not found");
-    }
+  if (!deletedEntry) {
+    throw new Error("Tracker entry not found");
+  }
 
-    return deletedEntry;
-  });
-
-  return result;
+  return deletedEntry;
 }
 
 // Timer functions (improved naming and functionality)
@@ -404,9 +400,9 @@ export async function startTimer(db: Database, params: StartTimerParams) {
     const [resumedEntry] = await db
       .update(trackerEntries)
       .set({
-        start: resumeTime, // Update the start timestamp to resume time
+        start: resumeTime,
         stop: null,
-        duration: -1,
+        duration: -1, // Mark as running
       })
       .where(
         and(
@@ -444,11 +440,12 @@ export async function startTimer(db: Database, params: StartTimerParams) {
 
   // Stop any existing running timers for this user
   if (assignedId) {
+    const stopTime = new Date().toISOString();
     await db
       .update(trackerEntries)
       .set({
-        stop: new Date().toISOString(),
-        duration: sql`EXTRACT(EPOCH FROM (${new Date().toISOString()}::timestamp - start::timestamp))::integer`,
+        stop: stopTime,
+        duration: sql`EXTRACT(EPOCH FROM (${stopTime}::timestamp - start::timestamp))::integer`,
       })
       .where(
         and(
@@ -504,10 +501,11 @@ export type StopTimerParams = {
   entryId?: string;
   assignedId?: string | null;
   stop?: string;
+  duration?: number; // Client-calculated duration including pause time
 };
 
 export async function stopTimer(db: Database, params: StopTimerParams) {
-  const { teamId, entryId, assignedId, stop } = params;
+  const { teamId, entryId, assignedId, stop, duration } = params;
   const stopTime = stop || new Date().toISOString();
 
   const whereConditions = [
@@ -523,11 +521,17 @@ export async function stopTimer(db: Database, params: StopTimerParams) {
     whereConditions.push(eq(trackerEntries.assignedId, assignedId));
   }
 
+  // Use client-calculated duration if provided, otherwise calculate server-side
+  const finalDuration =
+    duration !== undefined
+      ? duration
+      : sql`EXTRACT(EPOCH FROM (${stopTime}::timestamp - start::timestamp))::integer`;
+
   const [stoppedEntry] = await db
     .update(trackerEntries)
     .set({
       stop: stopTime,
-      duration: sql`EXTRACT(EPOCH FROM (${stopTime}::timestamp - start::timestamp))::integer`,
+      duration: finalDuration,
     })
     .where(and(...whereConditions))
     .returning();
