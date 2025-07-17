@@ -397,10 +397,30 @@ export async function startTimer(db: Database, params: StartTimerParams) {
   if (continueFromEntry) {
     const resumeTime = start || new Date().toISOString();
 
+    // First, get the current paused entry to get its accumulated duration
+    const pausedEntry = await db.query.trackerEntries.findFirst({
+      where: and(
+        eq(trackerEntries.id, continueFromEntry),
+        eq(trackerEntries.teamId, teamId),
+        ...(assignedId ? [eq(trackerEntries.assignedId, assignedId)] : []),
+        isNotNull(trackerEntries.stop), // Only resume paused entries
+      ),
+    });
+
+    if (!pausedEntry) {
+      throw new Error("Cannot resume: Entry not found or not paused");
+    }
+
+    // Calculate the adjusted start time to preserve accumulated time
+    const accumulatedDuration = pausedEntry.duration || 0;
+    const adjustedStartTime = new Date(
+      new Date(resumeTime).getTime() - accumulatedDuration * 1000,
+    ).toISOString();
+
     const [resumedEntry] = await db
       .update(trackerEntries)
       .set({
-        start: resumeTime,
+        start: adjustedStartTime, // Adjusted start time to preserve accumulated time
         stop: null,
         duration: -1, // Mark as running
       })
